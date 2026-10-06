@@ -1,22 +1,18 @@
-import re
-import html
 import hashlib
 import datetime as dt
 import xml.etree.ElementTree as ET
 
-from email.utils import format_datetime
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from email.utils import parsedate_to_datetime, format_datetime
 
 import requests
-from bs4 import BeautifulSoup
 
 
 # ============================================================
 # CONFIGURACIÓN
 # ============================================================
 
-BASE_URL = "https://www.elconfidencial.com"
-SECTION_URL = "https://www.elconfidencial.com/empresas/"
+SOURCE_RSS = "https://rss.elconfidencial.com/empresas/"
+
 OUTPUT_FILE = "feed.xml"
 
 HEADERS = {
@@ -25,410 +21,239 @@ HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/140.0 Safari/537.36"
     ),
+    "Accept": (
+        "application/rss+xml,"
+        "application/xml;q=0.9,"
+        "text/xml;q=0.8,"
+        "*/*;q=0.7"
+    ),
     "Accept-Language": "es-ES,es;q=0.9",
 }
 
 
 # ============================================================
-# UTILIDADES
+# DESCARGAR RSS OFICIAL
 # ============================================================
 
-def clean_text(value):
-    if not value:
-        return ""
+def download_rss():
 
-    value = html.unescape(str(value))
-    value = re.sub(r"\s+", " ", value)
-
-    return value.strip()
-
-
-def clean_url(url):
-    if not url:
-        return ""
-
-    parts = urlsplit(url)
-
-    return urlunsplit(
-        (
-            parts.scheme,
-            parts.netloc,
-            parts.path,
-            "",
-            "",
-        )
-    )
-
-
-def download(url):
-    print(f"Descargando: {url}")
+    print("=" * 60)
+    print("Descargando RSS oficial de El Confidencial")
+    print(SOURCE_RSS)
+    print("=" * 60)
 
     response = requests.get(
-        url,
+        SOURCE_RSS,
         headers=HEADERS,
         timeout=45,
     )
 
-    response.raise_for_status()
-
-    return response.text
-
-
-# ============================================================
-# VALIDAR ARTÍCULOS
-# ============================================================
-
-def valid_article_url(url):
-    if not url:
-        return False
-
-    url = clean_url(url)
-
-    if not url.startswith(BASE_URL):
-        return False
-
-    if url.rstrip("/") == SECTION_URL.rstrip("/"):
-        return False
-
-    # Excluir recursos
-    extensions = (
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".gif",
-        ".webp",
-        ".svg",
-        ".css",
-        ".js",
-        ".xml",
+    print(
+        "Código HTTP:",
+        response.status_code
     )
 
-    if url.lower().endswith(extensions):
-        return False
+    response.raise_for_status()
 
-    return True
+    return response.content
 
 
 # ============================================================
-# FECHA
+# LIMPIAR TEXTO
+# ============================================================
+
+def clean_text(value):
+
+    if value is None:
+        return ""
+
+    return str(value).strip()
+
+
+# ============================================================
+# PROCESAR FECHA
 # ============================================================
 
 def parse_date(value):
+
     if not value:
         return None
 
-    value = clean_text(value)
-
     try:
-        value = value.replace(
-            "Z",
-            "+00:00"
+
+        result = parsedate_to_datetime(
+            value
         )
 
-        result = dt.datetime.fromisoformat(value)
-
         if result.tzinfo is None:
+
             result = result.replace(
                 tzinfo=dt.timezone.utc
             )
 
         return result
 
-    except Exception:
-        pass
-
-    match = re.search(
-        r"(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})"
-        r"(?:\s+(\d{1,2}):(\d{2}))?",
-        value,
-    )
-
-    if match:
-        try:
-            return dt.datetime(
-                int(match.group(3)),
-                int(match.group(2)),
-                int(match.group(1)),
-                int(match.group(4) or 0),
-                int(match.group(5) or 0),
-                tzinfo=dt.timezone.utc,
-            )
-
-        except Exception:
-            pass
-
-    return None
-
-
-def extract_date(soup):
-    candidates = [
-        {"property": "article:published_time"},
-        {"name": "article:published_time"},
-        {"property": "og:published_time"},
-        {"name": "date"},
-        {"name": "pubdate"},
-    ]
-
-    for attrs in candidates:
-        tag = soup.find(
-            "meta",
-            attrs=attrs
-        )
-
-        if tag and tag.get("content"):
-            result = parse_date(
-                tag["content"]
-            )
-
-            if result:
-                return result
-
-    for tag in soup.find_all("time"):
-        value = (
-            tag.get("datetime")
-            or tag.get_text(" ", strip=True)
-        )
-
-        result = parse_date(value)
-
-        if result:
-            return result
-
-    # JSON-LD
-    for script in soup.find_all(
-        "script",
-        type="application/ld+json"
-    ):
-        text = script.string
-
-        if not text:
-            continue
-
-        match = re.search(
-            r'"datePublished"\s*:\s*"([^"]+)"',
-            text
-        )
-
-        if match:
-            result = parse_date(
-                match.group(1)
-            )
-
-            if result:
-                return result
-
-    return None
-
-
-# ============================================================
-# TITULAR
-# ============================================================
-
-def extract_title(soup, fallback=""):
-    h1 = soup.find("h1")
-
-    if h1:
-        title = clean_text(
-            h1.get_text(" ", strip=True)
-        )
-
-        if title:
-            return title
-
-    tag = soup.find(
-        "meta",
-        attrs={
-            "property": "og:title"
-        }
-    )
-
-    if tag and tag.get("content"):
-        title = clean_text(
-            tag["content"]
-        )
-
-        if title:
-            return title
-
-    return clean_text(fallback)
-
-
-# ============================================================
-# DESCRIPCIÓN
-# ============================================================
-
-def extract_description(soup):
-    for attrs in [
-        {"name": "description"},
-        {"property": "og:description"},
-    ]:
-        tag = soup.find(
-            "meta",
-            attrs=attrs
-        )
-
-        if tag and tag.get("content"):
-            return clean_text(
-                tag["content"]
-            )
-
-    return ""
-
-
-# ============================================================
-# OBTENER ARTÍCULOS DE LA SECCIÓN
-# ============================================================
-
-def get_article_links():
-    source = download(
-        SECTION_URL
-    )
-
-    soup = BeautifulSoup(
-        source,
-        "lxml"
-    )
-
-    links = {}
-
-    # Buscamos enlaces con texto suficientemente largo.
-    # El Confidencial coloca los titulares como enlaces
-    # dentro de la página de Empresas.
-    for a in soup.find_all(
-        "a",
-        href=True
-    ):
-        title = clean_text(
-            a.get_text(
-                " ",
-                strip=True
-            )
-        )
-
-        # Evitar menús, botones, etc.
-        if len(title) < 25:
-            continue
-
-        url = urljoin(
-            BASE_URL,
-            a["href"]
-        )
-
-        url = clean_url(url)
-
-        if not valid_article_url(url):
-            continue
-
-        # Evitamos secciones generales.
-        bad_paths = [
-            "/empresas/",
-            "/mercados/",
-            "/economia/",
-            "/vivienda/",
-            "/cotizaciones/",
-            "/juridico/",
-        ]
-
-        if any(
-            url.rstrip("/") ==
-            (BASE_URL + path).rstrip("/")
-            for path in bad_paths
-        ):
-            continue
-
-        if url not in links:
-            links[url] = title
-
-        elif len(title) > len(links[url]):
-            links[url] = title
-
-    print(
-        f"Enlaces encontrados: {len(links)}"
-    )
-
-    return links
-
-
-# ============================================================
-# LEER ARTÍCULO
-# ============================================================
-
-def get_article(
-    url,
-    fallback_title
-):
-    try:
-        source = download(url)
-
     except Exception as exc:
+
         print(
-            f"ERROR artículo {url}: {exc}"
+            "No se pudo interpretar fecha:",
+            value,
+            exc
         )
+
         return None
-
-    soup = BeautifulSoup(
-        source,
-        "lxml"
-    )
-
-    title = extract_title(
-        soup,
-        fallback_title
-    )
-
-    if not title:
-        return None
-
-    published = extract_date(soup)
-
-    description = extract_description(
-        soup
-    )
-
-    return {
-        "title": title,
-        "url": url,
-        "date": published,
-        "description": description,
-    }
 
 
 # ============================================================
-# RECOPILAR
+# LEER RSS OFICIAL
 # ============================================================
 
 def collect_articles():
-    links = get_article_links()
 
-    articles = []
-    seen = set()
+    content = download_rss()
 
-    for url, fallback_title in links.items():
+    try:
 
-        article = get_article(
-            url,
-            fallback_title
+        root = ET.fromstring(
+            content
         )
 
-        if not article:
+    except ET.ParseError as exc:
+
+        print(
+            "ERROR leyendo XML:",
+            exc
+        )
+
+        raise
+
+    articles = []
+
+    # ========================================================
+    # RSS 2.0
+    # ========================================================
+
+    items = root.findall(
+        ".//item"
+    )
+
+    print(
+        "Entradas encontradas en RSS:",
+        len(items)
+    )
+
+    for item in items:
+
+        # ----------------------------------------------------
+        # TITULAR
+        # ----------------------------------------------------
+
+        title = clean_text(
+            item.findtext(
+                "title"
+            )
+        )
+
+        # ----------------------------------------------------
+        # ENLACE
+        # ----------------------------------------------------
+
+        link = clean_text(
+            item.findtext(
+                "link"
+            )
+        )
+
+        # ----------------------------------------------------
+        # DESCRIPCIÓN
+        # ----------------------------------------------------
+
+        description = clean_text(
+            item.findtext(
+                "description"
+            )
+        )
+
+        # ----------------------------------------------------
+        # FECHA
+        # ----------------------------------------------------
+
+        pub_date_raw = clean_text(
+            item.findtext(
+                "pubDate"
+            )
+        )
+
+        published = parse_date(
+            pub_date_raw
+        )
+
+        # ----------------------------------------------------
+        # VALIDACIÓN
+        # ----------------------------------------------------
+
+        if not title:
+
+            print(
+                "Entrada ignorada: "
+                "sin titular"
+            )
+
             continue
 
-        guid = hashlib.sha256(
-            url.encode("utf-8")
-        ).hexdigest()
+        if not link:
 
-        if guid in seen:
+            print(
+                "Entrada ignorada: "
+                "sin enlace:",
+                title
+            )
+
             continue
 
-        seen.add(guid)
+        # ----------------------------------------------------
+        # GUID
+        # ----------------------------------------------------
 
-        article["guid"] = guid
+        guid_original = clean_text(
+            item.findtext(
+                "guid"
+            )
+        )
 
-        articles.append(article)
+        if guid_original:
+
+            guid = guid_original
+
+        else:
+
+            guid = hashlib.sha256(
+                link.encode(
+                    "utf-8"
+                )
+            ).hexdigest()
+
+        # ----------------------------------------------------
+        # GUARDAR
+        # ----------------------------------------------------
+
+        articles.append(
+            {
+                "title": title,
+                "link": link,
+                "description": description,
+                "date": published,
+                "guid": guid,
+            }
+        )
+
+    # ========================================================
+    # ORDENAR POR FECHA
+    # ========================================================
 
     articles.sort(
-        key=lambda x: (
-            x["date"]
+        key=lambda article: (
+            article["date"]
             or dt.datetime(
                 1970,
                 1,
@@ -443,7 +268,7 @@ def collect_articles():
 
 
 # ============================================================
-# GENERAR RSS
+# CREAR RSS PARA FEEDLY
 # ============================================================
 
 def create_rss(articles):
@@ -460,15 +285,23 @@ def create_rss(articles):
         "channel"
     )
 
+    # ========================================================
+    # INFORMACIÓN DEL CANAL
+    # ========================================================
+
     ET.SubElement(
         channel,
         "title"
-    ).text = "El Confidencial - Empresas"
+    ).text = (
+        "El Confidencial - Empresas"
+    )
 
     ET.SubElement(
         channel,
         "link"
-    ).text = SECTION_URL
+    ).text = (
+        "https://www.elconfidencial.com/empresas/"
+    )
 
     ET.SubElement(
         channel,
@@ -492,6 +325,10 @@ def create_rss(articles):
         )
     )
 
+    # ========================================================
+    # NOTICIAS
+    # ========================================================
+
     for article in articles:
 
         item = ET.SubElement(
@@ -499,21 +336,43 @@ def create_rss(articles):
             "item"
         )
 
-        # =========================================
-        # SOLO EL TITULAR
-        # =========================================
+        # ====================================================
+        # IMPORTANTE:
+        #
+        # SOLO EL TITULAR ORIGINAL
+        #
+        # No añadimos:
+        # - EL CONFIDENCIAL
+        # - fecha
+        # - hora
+        # - categoría
+        #
+        # Feedly mostrará únicamente el titular.
+        # ====================================================
 
         ET.SubElement(
             item,
             "title"
-        ).text = article["title"]
+        ).text = article[
+            "title"
+        ]
+
+        # ====================================================
+        # ENLACE ORIGINAL
+        # ====================================================
 
         ET.SubElement(
             item,
             "link"
-        ).text = article["url"]
+        ).text = article[
+            "link"
+        ]
 
-        guid = ET.SubElement(
+        # ====================================================
+        # GUID
+        # ====================================================
+
+        guid_element = ET.SubElement(
             item,
             "guid",
             {
@@ -521,37 +380,48 @@ def create_rss(articles):
             }
         )
 
-        guid.text = article["guid"]
+        guid_element.text = article[
+            "guid"
+        ]
 
-        # Fecha interna para Feedly
+        # ====================================================
+        # FECHA
+        #
+        # Se mantiene internamente para que Feedly ordene
+        # correctamente las noticias.
+        #
+        # NO se añade al titular.
+        # ====================================================
+
         if article["date"]:
-
-            date_value = article["date"]
-
-            if date_value.tzinfo is None:
-                date_value = (
-                    date_value.replace(
-                        tzinfo=dt.timezone.utc
-                    )
-                )
 
             ET.SubElement(
                 item,
                 "pubDate"
             ).text = format_datetime(
-                date_value
+                article["date"]
             )
+
+        # ====================================================
+        # DESCRIPCIÓN
+        # ====================================================
 
         if article["description"]:
 
             ET.SubElement(
                 item,
                 "description"
-            ).text = html.escape(
-                article["description"]
-            )
+            ).text = article[
+                "description"
+            ]
 
-    tree = ET.ElementTree(rss)
+    # ========================================================
+    # GUARDAR FEED.XML
+    # ========================================================
+
+    tree = ET.ElementTree(
+        rss
+    )
 
     ET.indent(
         tree,
@@ -561,53 +431,94 @@ def create_rss(articles):
     tree.write(
         OUTPUT_FILE,
         encoding="utf-8",
-        xml_declaration=True
+        xml_declaration=True,
     )
 
 
 # ============================================================
-# MAIN
+# PROGRAMA PRINCIPAL
 # ============================================================
 
 def main():
 
+    print()
     print("=" * 60)
-
-    print(
-        "EL CONFIDENCIAL - EMPRESAS"
-    )
-
+    print("EL CONFIDENCIAL - EMPRESAS")
     print("=" * 60)
+    print()
 
     articles = collect_articles()
 
+    print()
     print(
-        f"\nArtículos obtenidos: "
-        f"{len(articles)}"
+        "Noticias obtenidas:",
+        len(articles)
     )
+    print()
+
+    # ========================================================
+    # EVITAR CREAR RSS VACÍA
+    # ========================================================
 
     if not articles:
+
         raise RuntimeError(
-            "No se encontraron artículos."
+            "No se encontraron noticias "
+            "en la RSS de El Confidencial."
         )
 
+    # ========================================================
+    # MOSTRAR TITULARES EN ACTIONS
+    # ========================================================
+
     print(
-        "\nÚltimos titulares:"
+        "Últimos titulares:"
+    )
+
+    print(
+        "-" * 60
     )
 
     for article in articles[:20]:
+
         print(
-            "- " + article["title"]
+            article["title"]
         )
 
-    create_rss(articles)
-
     print(
-        "\nRSS creada correctamente:"
+        "-" * 60
     )
 
-    print(OUTPUT_FILE)
+    # ========================================================
+    # CREAR RSS
+    # ========================================================
 
+    create_rss(
+        articles
+    )
+
+    print()
+    print(
+        "RSS creada correctamente:"
+    )
+
+    print(
+        OUTPUT_FILE
+    )
+
+    print()
+    print(
+        "Total de noticias:",
+        len(articles)
+    )
+
+    print()
+
+
+# ============================================================
+# EJECUCIÓN
+# ============================================================
 
 if __name__ == "__main__":
+
     main()
