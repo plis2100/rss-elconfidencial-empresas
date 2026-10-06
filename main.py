@@ -1,7 +1,6 @@
 import hashlib
 import datetime as dt
 import xml.etree.ElementTree as ET
-
 from email.utils import parsedate_to_datetime, format_datetime
 
 import requests
@@ -12,7 +11,6 @@ import requests
 # ============================================================
 
 SOURCE_RSS = "https://rss.elconfidencial.com/empresas/"
-
 OUTPUT_FILE = "feed.xml"
 
 HEADERS = {
@@ -23,39 +21,14 @@ HEADERS = {
     ),
     "Accept": (
         "application/rss+xml,"
-        "application/xml;q=0.9,"
-        "text/xml;q=0.8,"
-        "*/*;q=0.7"
+        "application/atom+xml,"
+        "application/xml,"
+        "text/xml,"
+        "text/html;q=0.9,"
+        "*/*;q=0.8"
     ),
     "Accept-Language": "es-ES,es;q=0.9",
 }
-
-
-# ============================================================
-# DESCARGAR RSS OFICIAL
-# ============================================================
-
-def download_rss():
-
-    print("=" * 60)
-    print("Descargando RSS oficial de El Confidencial")
-    print(SOURCE_RSS)
-    print("=" * 60)
-
-    response = requests.get(
-        SOURCE_RSS,
-        headers=HEADERS,
-        timeout=45,
-    )
-
-    print(
-        "Código HTTP:",
-        response.status_code
-    )
-
-    response.raise_for_status()
-
-    return response.content
 
 
 # ============================================================
@@ -67,17 +40,65 @@ def clean_text(value):
     if value is None:
         return ""
 
-    return str(value).strip()
+    return " ".join(
+        str(value).split()
+    )
 
 
 # ============================================================
-# PROCESAR FECHA
+# DESCARGAR
+# ============================================================
+
+def download_source():
+
+    print("=" * 60)
+    print("DESCARGANDO EL CONFIDENCIAL - EMPRESAS")
+    print(SOURCE_RSS)
+    print("=" * 60)
+
+    response = requests.get(
+        SOURCE_RSS,
+        headers=HEADERS,
+        timeout=45,
+        allow_redirects=True,
+    )
+
+    print("Código HTTP:", response.status_code)
+    print("URL final:", response.url)
+
+    print(
+        "Content-Type:",
+        response.headers.get(
+            "content-type",
+            "DESCONOCIDO"
+        )
+    )
+
+    print(
+        "Tamaño:",
+        len(response.content),
+        "bytes"
+    )
+
+    response.raise_for_status()
+
+    return response
+
+
+# ============================================================
+# FECHAS
 # ============================================================
 
 def parse_date(value):
 
     if not value:
         return None
+
+    value = clean_text(value)
+
+    # --------------------------------------------------------
+    # RFC 822 / RSS
+    # --------------------------------------------------------
 
     try:
 
@@ -93,24 +114,182 @@ def parse_date(value):
 
         return result
 
-    except Exception as exc:
+    except Exception:
+        pass
 
-        print(
-            "No se pudo interpretar fecha:",
-            value,
-            exc
+    # --------------------------------------------------------
+    # ISO 8601 / ATOM
+    # --------------------------------------------------------
+
+    try:
+
+        iso_value = value.replace(
+            "Z",
+            "+00:00"
         )
 
-        return None
+        result = dt.datetime.fromisoformat(
+            iso_value
+        )
+
+        if result.tzinfo is None:
+
+            result = result.replace(
+                tzinfo=dt.timezone.utc
+            )
+
+        return result
+
+    except Exception:
+        pass
+
+    return None
 
 
 # ============================================================
-# LEER RSS OFICIAL
+# NOMBRE LOCAL DE ETIQUETA XML
+# ============================================================
+
+def local_name(tag):
+
+    if not isinstance(tag, str):
+        return ""
+
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+
+    return tag
+
+
+# ============================================================
+# BUSCAR HIJO POR NOMBRE
+# ============================================================
+
+def find_child(element, names):
+
+    names = set(names)
+
+    for child in element:
+
+        if local_name(
+            child.tag
+        ) in names:
+
+            return child
+
+    return None
+
+
+# ============================================================
+# TEXTO DE HIJO
+# ============================================================
+
+def child_text(element, names):
+
+    child = find_child(
+        element,
+        names
+    )
+
+    if child is None:
+        return ""
+
+    text = "".join(
+        child.itertext()
+    )
+
+    return clean_text(
+        text
+    )
+
+
+# ============================================================
+# EXTRAER ENLACE
+# ============================================================
+
+def extract_link(element):
+
+    for child in element:
+
+        if local_name(
+            child.tag
+        ) != "link":
+
+            continue
+
+        # ATOM
+        href = child.attrib.get(
+            "href"
+        )
+
+        if href:
+
+            rel = child.attrib.get(
+                "rel",
+                "alternate"
+            )
+
+            if rel in (
+                "",
+                "alternate"
+            ):
+
+                return clean_text(
+                    href
+                )
+
+        # RSS
+        if child.text:
+
+            link = clean_text(
+                child.text
+            )
+
+            if link:
+                return link
+
+    return ""
+
+
+# ============================================================
+# DETECTAR ENTRADAS
+# ============================================================
+
+def find_entries(root):
+
+    entries = []
+
+    for element in root.iter():
+
+        name = local_name(
+            element.tag
+        )
+
+        if name in (
+            "item",
+            "entry"
+        ):
+
+            entries.append(
+                element
+            )
+
+    return entries
+
+
+# ============================================================
+# EXTRAER ARTÍCULOS
 # ============================================================
 
 def collect_articles():
 
-    content = download_rss()
+    response = download_source()
+
+    content = response.content
+
+    # --------------------------------------------------------
+    # INTENTAR LEER XML
+    # --------------------------------------------------------
 
     try:
 
@@ -120,122 +299,195 @@ def collect_articles():
 
     except ET.ParseError as exc:
 
+        print()
+        print("=" * 60)
+        print("NO ES XML VÁLIDO")
+        print("=" * 60)
+
         print(
-            "ERROR leyendo XML:",
+            "Error:",
             exc
         )
 
-        raise
+        print()
+        print(
+            "PRIMEROS 2000 CARACTERES "
+            "RECIBIDOS:"
+        )
 
-    articles = []
+        print("-" * 60)
 
-    # ========================================================
-    # RSS 2.0
-    # ========================================================
+        print(
+            response.text[:2000]
+        )
 
-    items = root.findall(
-        ".//item"
+        print("-" * 60)
+
+        raise RuntimeError(
+            "El servidor no está devolviendo "
+            "un RSS/Atom/XML válido."
+        )
+
+    # --------------------------------------------------------
+    # INFORMACIÓN DEL XML
+    # --------------------------------------------------------
+
+    print()
+    print(
+        "Etiqueta raíz:",
+        root.tag
+    )
+
+    entries = find_entries(
+        root
     )
 
     print(
-        "Entradas encontradas en RSS:",
-        len(items)
+        "Entradas item/entry encontradas:",
+        len(entries)
     )
 
-    for item in items:
+    # --------------------------------------------------------
+    # SI NO HAY ENTRADAS
+    # --------------------------------------------------------
 
-        # ----------------------------------------------------
-        # TITULAR
-        # ----------------------------------------------------
+    if not entries:
 
-        title = clean_text(
-            item.findtext(
+        print()
+        print("=" * 60)
+        print("NO SE HAN ENCONTRADO NOTICIAS")
+        print("=" * 60)
+
+        print()
+        print(
+            "Etiquetas XML encontradas:"
+        )
+
+        names = []
+
+        for element in root.iter():
+
+            name = local_name(
+                element.tag
+            )
+
+            if (
+                name
+                and name not in names
+            ):
+
+                names.append(
+                    name
+                )
+
+        for name in names[:100]:
+
+            print(
+                "-",
+                name
+            )
+
+        print()
+        print(
+            "PRIMEROS 3000 CARACTERES "
+            "DE LA RESPUESTA:"
+        )
+
+        print("-" * 60)
+
+        print(
+            response.text[:3000]
+        )
+
+        print("-" * 60)
+
+        raise RuntimeError(
+            "La dirección responde HTTP 200, "
+            "pero no contiene entradas RSS/Atom."
+        )
+
+    # --------------------------------------------------------
+    # PROCESAR ENTRADAS
+    # --------------------------------------------------------
+
+    articles = []
+
+    seen = set()
+
+    for entry in entries:
+
+        title = child_text(
+            entry,
+            [
                 "title"
-            )
+            ]
         )
 
-        # ----------------------------------------------------
-        # ENLACE
-        # ----------------------------------------------------
-
-        link = clean_text(
-            item.findtext(
-                "link"
-            )
+        link = extract_link(
+            entry
         )
 
-        # ----------------------------------------------------
-        # DESCRIPCIÓN
-        # ----------------------------------------------------
-
-        description = clean_text(
-            item.findtext(
-                "description"
-            )
+        description = child_text(
+            entry,
+            [
+                "description",
+                "summary",
+                "content",
+            ]
         )
 
-        # ----------------------------------------------------
-        # FECHA
-        # ----------------------------------------------------
-
-        pub_date_raw = clean_text(
-            item.findtext(
-                "pubDate"
-            )
+        date_raw = child_text(
+            entry,
+            [
+                "pubDate",
+                "published",
+                "updated",
+                "date",
+            ]
         )
 
         published = parse_date(
-            pub_date_raw
+            date_raw
+        )
+
+        guid = child_text(
+            entry,
+            [
+                "guid",
+                "id",
+            ]
         )
 
         # ----------------------------------------------------
-        # VALIDACIÓN
+        # VALIDAR
         # ----------------------------------------------------
 
         if not title:
-
-            print(
-                "Entrada ignorada: "
-                "sin titular"
-            )
-
             continue
 
         if not link:
-
-            print(
-                "Entrada ignorada: "
-                "sin enlace:",
-                title
-            )
-
             continue
 
         # ----------------------------------------------------
-        # GUID
+        # EVITAR DUPLICADOS
         # ----------------------------------------------------
 
-        guid_original = clean_text(
-            item.findtext(
-                "guid"
-            )
+        key = link.strip()
+
+        if key in seen:
+            continue
+
+        seen.add(
+            key
         )
 
-        if guid_original:
-
-            guid = guid_original
-
-        else:
+        if not guid:
 
             guid = hashlib.sha256(
                 link.encode(
                     "utf-8"
                 )
             ).hexdigest()
-
-        # ----------------------------------------------------
-        # GUARDAR
-        # ----------------------------------------------------
 
         articles.append(
             {
@@ -247,9 +499,9 @@ def collect_articles():
             }
         )
 
-    # ========================================================
-    # ORDENAR POR FECHA
-    # ========================================================
+    # --------------------------------------------------------
+    # ORDENAR
+    # --------------------------------------------------------
 
     articles.sort(
         key=lambda article: (
@@ -285,10 +537,6 @@ def create_rss(articles):
         "channel"
     )
 
-    # ========================================================
-    # INFORMACIÓN DEL CANAL
-    # ========================================================
-
     ET.SubElement(
         channel,
         "title"
@@ -307,7 +555,7 @@ def create_rss(articles):
         channel,
         "description"
     ).text = (
-        "Noticias de la sección Empresas "
+        "Noticias de Empresas "
         "de El Confidencial"
     )
 
@@ -337,17 +585,7 @@ def create_rss(articles):
         )
 
         # ====================================================
-        # IMPORTANTE:
-        #
-        # SOLO EL TITULAR ORIGINAL
-        #
-        # No añadimos:
-        # - EL CONFIDENCIAL
-        # - fecha
-        # - hora
-        # - categoría
-        #
-        # Feedly mostrará únicamente el titular.
+        # SOLO EL TITULAR
         # ====================================================
 
         ET.SubElement(
@@ -357,9 +595,9 @@ def create_rss(articles):
             "title"
         ]
 
-        # ====================================================
-        # ENLACE ORIGINAL
-        # ====================================================
+        # ----------------------------------------------------
+        # ENLACE
+        # ----------------------------------------------------
 
         ET.SubElement(
             item,
@@ -368,9 +606,9 @@ def create_rss(articles):
             "link"
         ]
 
-        # ====================================================
+        # ----------------------------------------------------
         # GUID
-        # ====================================================
+        # ----------------------------------------------------
 
         guid_element = ET.SubElement(
             item,
@@ -384,14 +622,12 @@ def create_rss(articles):
             "guid"
         ]
 
-        # ====================================================
+        # ----------------------------------------------------
         # FECHA
         #
-        # Se mantiene internamente para que Feedly ordene
-        # correctamente las noticias.
-        #
-        # NO se añade al titular.
-        # ====================================================
+        # Feedly la usa para ordenar,
+        # pero NO aparece añadida al titular.
+        # ----------------------------------------------------
 
         if article["date"]:
 
@@ -402,9 +638,9 @@ def create_rss(articles):
                 article["date"]
             )
 
-        # ====================================================
+        # ----------------------------------------------------
         # DESCRIPCIÓN
-        # ====================================================
+        # ----------------------------------------------------
 
         if article["description"]:
 
@@ -416,7 +652,7 @@ def create_rss(articles):
             ]
 
     # ========================================================
-    # GUARDAR FEED.XML
+    # GUARDAR
     # ========================================================
 
     tree = ET.ElementTree(
@@ -436,7 +672,7 @@ def create_rss(articles):
 
 
 # ============================================================
-# PROGRAMA PRINCIPAL
+# MAIN
 # ============================================================
 
 def main():
@@ -450,65 +686,57 @@ def main():
     articles = collect_articles()
 
     print()
+    print("=" * 60)
     print(
-        "Noticias obtenidas:",
+        "NOTICIAS OBTENIDAS:",
         len(articles)
     )
-    print()
-
-    # ========================================================
-    # EVITAR CREAR RSS VACÍA
-    # ========================================================
+    print("=" * 60)
 
     if not articles:
 
         raise RuntimeError(
-            "No se encontraron noticias "
-            "en la RSS de El Confidencial."
+            "No se encontraron noticias."
         )
 
-    # ========================================================
-    # MOSTRAR TITULARES EN ACTIONS
-    # ========================================================
-
+    print()
     print(
-        "Últimos titulares:"
+        "ÚLTIMOS TITULARES:"
     )
 
-    print(
-        "-" * 60
-    )
+    print("-" * 60)
 
-    for article in articles[:20]:
+    for article in articles[:30]:
 
         print(
+            "-",
             article["title"]
         )
 
-    print(
-        "-" * 60
-    )
+    print("-" * 60)
 
-    # ========================================================
-    # CREAR RSS
-    # ========================================================
+    # --------------------------------------------------------
+    # CREAR FEED.XML
+    # --------------------------------------------------------
 
     create_rss(
         articles
     )
 
     print()
+    print("=" * 60)
     print(
-        "RSS creada correctamente:"
+        "RSS CREADA CORRECTAMENTE"
     )
+    print("=" * 60)
 
     print(
+        "Archivo:",
         OUTPUT_FILE
     )
 
-    print()
     print(
-        "Total de noticias:",
+        "Noticias:",
         len(articles)
     )
 
