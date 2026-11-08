@@ -5,7 +5,14 @@
     <link>https://www.elconfidencial.com/empresas/</link>
     <description>Noticias de Empresas de El Confidencial</description>
     <language>es</language>
-    <lastBuildDate>Sun, 08 Nov 2026 19:43:27 +0000</lastBuildDate>
+    <lastBuildDate>Sun, 08 Nov 2026 23:43:30 +0000</lastBuildDate>
+    <item>
+      <title>Nvidia abrirá una investigación a su director ejecutivo por su relación personal con una espía china</title>
+      <link>https://www.elconfidencial.com/empresas/2026-11-08/nvidia-investigacion-espionaje-china-1tps_4461398/</link>
+      <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-11-08/nvidia-investigacion-espionaje-china-1tps_4461398/</guid>
+      <pubDate>Sun, 08 Nov 2026 21:38:00 +0100</pubDate>
+      <description>La junta designará expertos externos para esclarecer si un vínculo sentimental con una empresaria ligada a Pekín expuso secretos tecnológicos o intereses estratégicos estadounidenses</description>
+    </item>
     <item>
       <title>El 90% de las pymes tiene datos filtrados o contraseñas expuestas</title>
       <link>https://www.elconfidencial.com/empresas/2026-11-08/pymes-ciberseguridad-inteligencia-artificial-1hms-1svm_4461279/</link>
@@ -103,13 +110,6 @@
       <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-05-26/el-arte-de-crear-vicky-foods-rafael-juan-bra_4360871/</guid>
       <pubDate>Tue, 26 May 2026 05:00:00 +0200</pubDate>
       <description>El consejero delegado de Vicky Foods comparte en El Arte de Crear una manera de hacer empresa donde las personas están siempre en el centro y donde el legado de su madre, sigue marcando el rumbo de una de las grandes compañías alimentación</description>
-    </item>
-    <item>
-      <title>Ana Jaureguizar: "La belleza en España es una industria que aporta 19.000 millones cada año"</title>
-      <link>https://www.elconfidencial.com/empresas/2026-04-14/el-arte-de-crear-loreal-ana-jaureguizar-bra_4337018/</link>
-      <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-04-14/el-arte-de-crear-loreal-ana-jaureguizar-bra_4337018/</guid>
-      <pubDate>Tue, 14 Apr 2026 05:00:00 +0200</pubDate>
-      <description>Ana Jaureguizar, directora general de L’Oréal Consumer Products en España y Portugal, comparte en El Arte de Crear una mirada íntima la belleza y el papel de las personas en una industria que transforma cada día nuestras vidas</description>
     </item>
   </channel>
 </rss>
