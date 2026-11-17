@@ -5,7 +5,21 @@
     <link>https://www.elconfidencial.com/empresas/</link>
     <description>Noticias de Empresas de El Confidencial</description>
     <language>es</language>
-    <lastBuildDate>Tue, 17 Nov 2026 14:25:43 +0000</lastBuildDate>
+    <lastBuildDate>Tue, 17 Nov 2026 22:52:39 +0000</lastBuildDate>
+    <item>
+      <title>El PP dice que venderá la participación del Estado en CaixaBank "de forma ordenada"</title>
+      <link>https://www.elconfidencial.com/empresas/2026-11-17/pp-caixabank-juan-bravo-fron-estado_4467166/</link>
+      <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-11-17/pp-caixabank-juan-bravo-fron-estado_4467166/</guid>
+      <pubDate>Tue, 17 Nov 2026 21:56:00 +0100</pubDate>
+      <description>Juan Bravo ha señalado en 'Onda Cero' que la idea de los 'populares', si gobiernan, es poner a la venta la participación del Estado en la entidad bancaria, donde posee un 18%</description>
+    </item>
+    <item>
+      <title>El Corte Inglés (Kumo) esquiva el pulso normativo y pone en marcha en Valencia su segundo centro de datos 'boutique'</title>
+      <link>https://www.elconfidencial.com/empresas/2026-11-17/el-corte-ingles-kumo-centro-de-datos-valencia_4467033/</link>
+      <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-11-17/el-corte-ingles-kumo-centro-de-datos-valencia_4467033/</guid>
+      <pubDate>Tue, 17 Nov 2026 18:47:00 +0100</pubDate>
+      <description>La filial de data centers del grupo de distribución enciende en Paterna una infraestructura con potencia por debajo del umbral que regula el discutido real decreto del Gobierno y con alianzas con Telefónica y Orange</description>
+    </item>
     <item>
       <title>Los analistas valoran positivamente la posible compra de Vero por Telefónica y destacan su potencial de crecimiento en Brasil</title>
       <link>https://www.elconfidencial.com/empresas/2026-11-17/telefonica-brasil-adquisicion-vero-fibra-1hms-1svm_4466741/</link>
@@ -70,7 +84,7 @@
       <description>La herramienta permite comprobar la autenticidad y trayectoria de vídeos, imágenes y comunicados mediante huellas criptográficas y registros temporales verificables</description>
     </item>
     <item>
-      <title>Deutsche Bank cae un 4% en bolsa al salir a la luz operaciones sospechosas y vínculos con Epstein</title>
+      <title>Deutsche Bank cae un 6% en bolsa al salir a la luz operaciones sospechosas y vínculos con Epstein</title>
       <link>https://www.elconfidencial.com/empresas/2026-11-17/cotizacion-deutsche-bank-operaciones-sospechosas-vinculos-epstein_4466534/</link>
       <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-11-17/cotizacion-deutsche-bank-operaciones-sospechosas-vinculos-epstein_4466534/</guid>
       <pubDate>Tue, 17 Nov 2026 11:00:00 +0100</pubDate>
@@ -96,20 +110,6 @@
       <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-07-03/energia-resiliencia-sostenibilidad-bra_4382218/</guid>
       <pubDate>Fri, 03 Jul 2026 05:00:00 +0200</pubDate>
       <description>Madrid ha acogido este foro, en el que se han reunido líderes y representantes del sector energético para arrojar luz sobre la ruta que debemos seguir en España y Europa</description>
-    </item>
-    <item>
-      <title>José Ignacio Goirigolzarri: "La banca es un negocio de confianza; sin ella, un banco desaparece"</title>
-      <link>https://www.elconfidencial.com/empresas/2026-06-30/el-arte-de-crear-banca-jose-ignacio-goirigolzarri-bra_4380167/</link>
-      <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-06-30/el-arte-de-crear-banca-jose-ignacio-goirigolzarri-bra_4380167/</guid>
-      <pubDate>Tue, 30 Jun 2026 05:00:00 +0200</pubDate>
-      <description>El presidente de Fad Juventud se une a El Arte de Crear para repasar casi cinco décadas en la primera línea de la banca española y una forma de entender el liderazgo en la que las personas, los principios y el ejemplo van siempre por delante</description>
-    </item>
-    <item>
-      <title>Carlos Moro: "El éxito es efímero: es estar cada día avanzando, mejorando y trabajando por un mundo mejor"</title>
-      <link>https://www.elconfidencial.com/empresas/2026-06-16/el-arte-de-crear-bodega-matarromera-carlos-moro-bra_4372812/</link>
-      <guid isPermaLink="false">https://www.elconfidencial.com/empresas/2026-06-16/el-arte-de-crear-bodega-matarromera-carlos-moro-bra_4372812/</guid>
-      <pubDate>Tue, 16 Jun 2026 05:00:00 +0200</pubDate>
-      <description>El fundador y presidente de Bodegas Familiares Matarromera se sienta en el sofá de El Arte de Crear para repasar casi cuatro décadas de aventura: del despacho de la Administración a la viña</description>
     </item>
   </channel>
 </rss>
